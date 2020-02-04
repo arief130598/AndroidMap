@@ -103,7 +103,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
             android:layout_margin="8dp"
-            app:srcCompat="@drawable/ic_layers_24dp"
+            app:srcCompat="@drawable/ic_refresh_white_24dp"
             app:backgroundTint="#000000"
             app:fabCustomSize="42dp"/>
 

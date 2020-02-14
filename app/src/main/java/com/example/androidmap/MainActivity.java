@@ -1,29 +1,31 @@
 package com.example.androidmap;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
-import androidx.core.graphics.drawable.DrawableCompat;
-
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
+
+import com.mapbox.api.directions.v5.DirectionsCriteria;
+import com.mapbox.api.directions.v5.MapboxDirections;
+import com.mapbox.api.directions.v5.models.DirectionsResponse;
+import com.mapbox.api.directions.v5.models.DirectionsRoute;
 import com.mapbox.api.geocoding.v5.models.CarmenFeature;
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
+import com.mapbox.geojson.LineString;
 import com.mapbox.geojson.Point;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
@@ -39,16 +41,25 @@ import com.mapbox.mapboxsdk.plugins.annotation.SymbolManager;
 import com.mapbox.mapboxsdk.plugins.annotation.SymbolOptions;
 import com.mapbox.mapboxsdk.plugins.places.autocomplete.PlaceAutocomplete;
 import com.mapbox.mapboxsdk.plugins.places.autocomplete.model.PlaceOptions;
+import com.mapbox.mapboxsdk.style.layers.LineLayer;
+import com.mapbox.mapboxsdk.style.layers.Property;
 import com.mapbox.mapboxsdk.style.layers.SymbolLayer;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
+
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.List;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import timber.log.Timber;
 
-import static com.mapbox.mapboxsdk.style.layers.Property.ICON_ROTATION_ALIGNMENT_VIEWPORT;
+import static com.mapbox.core.constants.Constants.PRECISION_6;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.iconImage;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.iconOffset;
+import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.lineCap;
+import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.lineColor;
+import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.lineJoin;
+import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.lineWidth;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener, OnMapReadyCallback {
 
@@ -66,6 +77,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private String symbolIconId = "symbolIconId";
     Symbol motorsymbol, mobilsymbol, tujuansymbol;
     SymbolManager symbolManager;
+    private Point start, finish;
+    private MapboxDirections client;
+    private DirectionsRoute currentRoute;
+
+
+    private static final String ROUTE_LAYER_ID = "route-layer-id";
+    private static final String ROUTE_SOURCE_ID = "route-source-id";
+    private static final String ICON_SOURCE_ID = "icon-source-id";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -195,6 +214,32 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         ));
     }
 
+    private void callDirection(Style style){
+        if(client!=null){
+            getRoute(start, finish);
+        }else{
+            style.addSource(new GeoJsonSource(ROUTE_SOURCE_ID,
+                    FeatureCollection.fromFeatures(new Feature[] {})));
+
+            GeoJsonSource iconGeoJsonSource = new GeoJsonSource(ICON_SOURCE_ID, FeatureCollection.fromFeatures(new Feature[] {
+                    Feature.fromGeometry(start),
+                    Feature.fromGeometry(finish)}));
+            style.addSource(iconGeoJsonSource);
+
+            LineLayer routeLayer = new LineLayer(ROUTE_LAYER_ID, ROUTE_SOURCE_ID);
+
+            // Add the LineLayer to the map. This layer will display the directions route.
+            routeLayer.setProperties(
+                    lineCap(Property.LINE_CAP_ROUND),
+                    lineJoin(Property.LINE_JOIN_ROUND),
+                    lineWidth(5f),
+                    lineColor(Color.parseColor("#009688"))
+            );
+            style.addLayer(routeLayer);
+            getRoute(start, finish);
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -230,7 +275,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                                 symbolManager.delete(mobilsymbol);
                             }
                             // Add symbol at specified lat/lon
-                            Symbol mobil = symbolManager.create(new SymbolOptions()
+                            motorsymbol = symbolManager.create(new SymbolOptions()
                                     .withLatLng(new LatLng(((Point) init.geometry()).latitude(),
                                             ((Point) init.geometry()).longitude()))
                                     .withIconImage("car_blue")
@@ -244,6 +289,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                                                 ((Point) init.geometry()).longitude()))
                                         .zoom(13)
                                         .build()), 3000);
+
+                        if(direction!=null){
+                            start = Point.fromLngLat(((Point) init.geometry()).longitude(), ((Point) init.geometry()).latitude());
+                            finish = Point.fromLngLat(((Point) direction.geometry()).longitude(), ((Point) direction.geometry()).latitude());
+                            callDirection(style);
+                        }
                     }
                 }
             }else{
@@ -272,9 +323,73 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                                         .zoom(13)
                                         .build()), 3000);
                     }
+                    if(init!=null){
+                        start = Point.fromLngLat(((Point) init.geometry()).longitude(), ((Point) init.geometry()).latitude());
+                        finish = Point.fromLngLat(((Point) direction.geometry()).longitude(), ((Point) direction.geometry()).latitude());
+                        if (style != null) {
+                            callDirection(style);
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private void getRoute(Point origin, Point destination) {
+        client = MapboxDirections.builder()
+                .origin(origin)
+                .destination(destination)
+                .overview(DirectionsCriteria.OVERVIEW_FULL)
+                .profile(DirectionsCriteria.PROFILE_DRIVING)
+                .accessToken(MAPBOX_API)
+                .build();
+
+        client.enqueueCall(new Callback<DirectionsResponse>() {
+            @Override
+            public void onResponse(Call<DirectionsResponse> call, Response<DirectionsResponse> response) {
+            // You can get the generic HTTP info about the response
+                Timber.d("Response code: " + response.code());
+                if (response.body() == null) {
+                    Timber.e("No routes found, make sure you set the right user and access token.");
+                    return;
+                } else if (response.body().routes().size() < 1) {
+                    Timber.e("No routes found");
+                    return;
+                }
+
+                // Get the directions route
+                currentRoute = response.body().routes().get(0);
+
+                // Make a toast which displays the route's distance
+                Toast.makeText(MainActivity.this, String.valueOf(currentRoute.distance()), Toast.LENGTH_SHORT).show();
+
+                if (mapboxMap != null) {
+                    mapboxMap.getStyle(new Style.OnStyleLoaded() {
+                        @Override
+                        public void onStyleLoaded(@NonNull Style style) {
+
+                            // Retrieve and update the source designated for showing the directions route
+                            GeoJsonSource source = style.getSourceAs(ROUTE_SOURCE_ID);
+
+                            // Create a LineString with the directions route's geometry and
+                            // reset the GeoJSON source for the route LineLayer source
+                            if (source != null) {
+                                Timber.d("onResponse: source != null");
+                                source.setGeoJson(FeatureCollection.fromFeature(
+                                        Feature.fromGeometry(LineString.fromPolyline(currentRoute.geometry(), PRECISION_6))));
+                            }
+                        }
+                    });
+                }
+            }
+
+            @Override
+            public void onFailure(Call<DirectionsResponse> call, Throwable throwable) {
+                Timber.e("Error: " + throwable.getMessage());
+                Toast.makeText(MainActivity.this, "Error: " + throwable.getMessage(),
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     public static Bitmap getBitmapFromVectorDrawable(Context context, int drawableId) {
@@ -324,6 +439,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        mapView.onDestroy();
+        // Cancel the Directions API request
+        if (client != null) {
+            client.cancelCall();
+        }
         mapView.onDestroy();
     }
 

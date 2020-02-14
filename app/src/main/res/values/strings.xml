@@ -2,5 +2,6 @@
     <string name="app_name">Android Map</string>
     <string name="initial_place">Initial Place</string>
     <string name="direction_place">Direction Place</string>
+    <string name="directions_activity_toast_message">10 km</string>
 
 </resources>

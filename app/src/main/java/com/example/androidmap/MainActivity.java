@@ -71,7 +71,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private static final int REQUEST_CODE_AUTOCOMPLETE = 1;
     private MapboxMap mapboxMap;
-    private String MAPBOX_API = BuildConfig.MAPBOX_API_KEY;
+    private String MAPBOX_API = BuildConfig.MAPBOX_API_KEY; // API Key
     public CarmenFeature init, direction;
     private String geojsonSourceLayerId = "geojsonSourceLayerId";
     private String symbolIconId = "symbolIconId";
@@ -90,9 +90,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Get API Instance FROM API
         Mapbox.getInstance(this, MAPBOX_API);
         setContentView(R.layout.activity_main);
         mapView = findViewById(R.id.mapView);
+        // Create Map, this will override onMapReady
         mapView.onCreate(savedInstanceState);
         mapView.getMapAsync(this);
 
@@ -110,23 +112,27 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     public void onClick(View v) {
 
         switch (v.getId()){
-            case R.id.motor:
+            case R.id.motor: // When Motorcycle Button Clicked
+                // Change Color Button
                 btnmotor.setBackgroundResource(R.drawable.rounded_btn_green);
                 btnmotor.setTextColor(Color.parseColor("#FFFFFF"));
                 btnmotor.setCompoundDrawablesWithIntrinsicBounds( 0, R.drawable.ic_motorcycle_white_24dp, 0, 0);
                 btnmobil.setBackgroundResource(R.drawable.rounded_btn);
                 btnmobil.setTextColor(Color.parseColor("#000000"));
                 btnmobil.setCompoundDrawablesWithIntrinsicBounds( 0, R.drawable.ic_directions_car_black_24dp, 0, 0);
+                // Set State of Vehicle to 0 When Motorcycle is active
                 kendaraan = 0;
                 break;
 
-            case R.id.mobil:
+            case R.id.mobil: // When Car Button Clicked
+                // Change Color Button
                 btnmobil.setBackgroundResource(R.drawable.rounded_btn_green);
                 btnmobil.setTextColor(Color.parseColor("#FFFFFF"));
                 btnmobil.setCompoundDrawablesWithIntrinsicBounds( 0, R.drawable.ic_directions_car_white_24dp, 0, 0);
                 btnmotor.setBackgroundResource(R.drawable.rounded_btn);
                 btnmotor.setTextColor(Color.parseColor("#000000"));
                 btnmotor.setCompoundDrawablesWithIntrinsicBounds( 0, R.drawable.ic_motorcycle_black_24dp, 0, 0);
+                // Set State of Vehicle to 1 When Car is active
                 kendaraan = 1;
                 break;
         }
@@ -141,18 +147,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             public void onStyleLoaded(@NonNull Style style) {
                 // Set Initial Location
                 UiSettings uiSettings = mapboxMap.getUiSettings();
+                // Set Compass Position
                 uiSettings.setCompassGravity(Gravity.BOTTOM | Gravity.END);
                 uiSettings.setCompassMargins(0, 0, 155, 16);
-                System.out.println(uiSettings.getAttributionGravity());
 
                 // Annotation / Marker
+                // Create SymbolManager for Calling Annotation or Marker
                 symbolManager = new SymbolManager(mapView, mapboxMap, style);
-
+                // Set stle of icon marker
                 symbolManager.setIconAllowOverlap(true);
                 symbolManager.setIconIgnorePlacement(true);
 
-                // Add symbol at specified lat/lon
-
+                // Create customize marker form drawable
                 Bitmap motorblue = getBitmapFromVectorDrawable(MainActivity.this, R.drawable.ic_motorcycle_blue_24dp);
                 style.addImage("motor_blue", motorblue);
                 Bitmap markerblue = getBitmapFromVectorDrawable(MainActivity.this, R.drawable.ic_place_blue_24dp);
@@ -160,6 +166,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 Bitmap carblue = getBitmapFromVectorDrawable(MainActivity.this, R.drawable.ic_directions_car_blue_24dp);
                 style.addImage("car_blue", carblue);
 
+                // This will initiate function to call Search
                 initSearchFab();
 
                 // Create an empty GeoJSON source using the empty feature collection
@@ -174,9 +181,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private void initSearchFab() {
         etinitplace.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View v) {
-                kode_cari = 0;
-                Intent intent = new PlaceAutocomplete.IntentBuilder()
+            public void onClick(View v) { // When Edit Text init clicked
+                kode_cari = 0; // This state for init
+                Intent intent = new PlaceAutocomplete.IntentBuilder() // Call Search
                         .accessToken(Mapbox.getAccessToken() != null ? Mapbox.getAccessToken() : MAPBOX_API)
                         .placeOptions(PlaceOptions.builder()
                                 .backgroundColor(Color.parseColor("#EEEEEE"))
@@ -189,9 +196,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         etdirectionplace.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View v) {
-                kode_cari = 1;
-                Intent intent = new PlaceAutocomplete.IntentBuilder()
+            public void onClick(View v) { // When Edit Text Direction clicked
+                kode_cari = 1; // This state for direction
+                Intent intent = new PlaceAutocomplete.IntentBuilder() // Call Search
                         .accessToken(Mapbox.getAccessToken() != null ? Mapbox.getAccessToken() : MAPBOX_API)
                         .placeOptions(PlaceOptions.builder()
                                 .backgroundColor(Color.parseColor("#EEEEEE"))
@@ -203,10 +210,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         });
     }
 
+    // Create an empty GeoJSON source using the empty feature collection
     private void setUpSource(@NonNull Style loadedMapStyle) {
         loadedMapStyle.addSource(new GeoJsonSource(geojsonSourceLayerId));
     }
 
+    // Set up a new symbol layer for displaying the searched location's feature coordinates
     private void setupLayer(@NonNull Style loadedMapStyle) {
         loadedMapStyle.addLayer(new SymbolLayer("SYMBOL_LAYER_ID", geojsonSourceLayerId).withProperties(
                 iconImage(symbolIconId),
@@ -214,10 +223,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         ));
     }
 
+    // Create Direction When Init Place and Direction not Null
     private void callDirection(Style style){
-        if(client!=null){
+        if(client!=null){ // If route already create
             getRoute(start, finish);
-        }else{
+        }else{ // If route not created or first run
             style.addSource(new GeoJsonSource(ROUTE_SOURCE_ID,
                     FeatureCollection.fromFeatures(new Feature[] {})));
 
@@ -244,20 +254,20 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (resultCode == Activity.RESULT_OK && requestCode == REQUEST_CODE_AUTOCOMPLETE) {
-            if(kode_cari == 0){
-                init = PlaceAutocomplete.getPlace(data);
-                etinitplace.setText(init.placeName());
+            if(kode_cari == 0){ // When searching initial place
+                init = PlaceAutocomplete.getPlace(data); // Get Data
+                etinitplace.setText(init.placeName()); // Set Edit Text
 
                 if (mapboxMap != null) {
                     Style style = mapboxMap.getStyle();
                     if (style != null) {
                         // Annotation / Marker
-                        if(kendaraan == 0){
+                        if(kendaraan == 0){ // If Vehicle was motorcycle
                             if(motorsymbol != null){
-                                symbolManager.delete(motorsymbol);
+                                symbolManager.delete(motorsymbol); // Check if icon already created
                             }
 
-                            if(mobilsymbol != null){
+                            if(mobilsymbol != null){ // Check if icon already created
                                 symbolManager.delete(mobilsymbol);
                             }
                             // Add symbol at specified lat/lon
@@ -266,12 +276,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                                             ((Point) init.geometry()).longitude()))
                                     .withIconImage("motor_blue")
                                     .withIconSize(1.0f));
-                        }else{
-                            if(motorsymbol != null){
+                        }else{ // Vechicle was car
+                            if(motorsymbol != null){ // Check if icon already created
                                 symbolManager.delete(motorsymbol);
                             }
 
-                            if(mobilsymbol != null){
+                            if(mobilsymbol != null){ // Check if icon already created
                                 symbolManager.delete(mobilsymbol);
                             }
                             // Add symbol at specified lat/lon
@@ -290,7 +300,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                                         .zoom(13)
                                         .build()), 3000);
 
-                        if(direction!=null){
+                        if(direction!=null){ // If initial and direction place not null, call function direction to create route
                             start = Point.fromLngLat(((Point) init.geometry()).longitude(), ((Point) init.geometry()).latitude());
                             finish = Point.fromLngLat(((Point) direction.geometry()).longitude(), ((Point) direction.geometry()).latitude());
                             callDirection(style);
@@ -298,13 +308,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     }
                 }
             }else{
-                direction = PlaceAutocomplete.getPlace(data);
-                etdirectionplace.setText(direction.placeName());
+                direction = PlaceAutocomplete.getPlace(data); // Get place data
+                etdirectionplace.setText(direction.placeName()); // Set text to direction edit text
 
                 if (mapboxMap != null) {
                     Style style = mapboxMap.getStyle();
                     if (style != null) {
-                        if(tujuansymbol != null){
+                        if(tujuansymbol != null){ // Check if icon already created
                             symbolManager.delete(tujuansymbol);
                         }
 
@@ -323,7 +333,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                                         .zoom(13)
                                         .build()), 3000);
                     }
-                    if(init!=null){
+                    if(init!=null){ // If initial and direction place not null, call function direction to create route
                         start = Point.fromLngLat(((Point) init.geometry()).longitude(), ((Point) init.geometry()).latitude());
                         finish = Point.fromLngLat(((Point) direction.geometry()).longitude(), ((Point) direction.geometry()).latitude());
                         if (style != null) {
@@ -335,15 +345,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
+    // Create root
     private void getRoute(Point origin, Point destination) {
+        // Get initial or setting route
         client = MapboxDirections.builder()
                 .origin(origin)
                 .destination(destination)
                 .overview(DirectionsCriteria.OVERVIEW_FULL)
-                .profile(DirectionsCriteria.PROFILE_DRIVING)
+                .profile(DirectionsCriteria.PROFILE_DRIVING_TRAFFIC)
                 .accessToken(MAPBOX_API)
                 .build();
 
+        // Call API from MapBox Direction API
         client.enqueueCall(new Callback<DirectionsResponse>() {
             @Override
             public void onResponse(Call<DirectionsResponse> call, Response<DirectionsResponse> response) {
@@ -392,6 +405,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         });
     }
 
+    // Convert drawable to bitmap
     public static Bitmap getBitmapFromVectorDrawable(Context context, int drawableId) {
         Drawable drawable = ContextCompat.getDrawable(context, drawableId);
 
